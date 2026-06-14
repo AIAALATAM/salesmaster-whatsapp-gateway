@@ -226,6 +226,7 @@ const dashboardAuth = (req: express.Request, res: express.Response, next: expres
 };
 
 const getTenantSummaries = () => {
+  const gatewaySecret = config.gatewaySharedSecret || "GATEWAY_SHARED_SECRET";
   return Object.entries(config.tenants).map(([locationId, tenant]) => ({
     locationId,
     instanceName: tenant.instanceName,
@@ -233,10 +234,10 @@ const getTenantSummaries = () => {
     hasPit: Boolean(tenant.pit),
     hasConversationProviderId: Boolean(tenant.conversationProviderId),
     hasMetaPhoneNumberId: Boolean(tenant.metaPhoneNumberId),
-    deliveryUrl: `${config.publicBaseUrl}/ghl-outbound?gatewaySecret=GATEWAY_SHARED_SECRET`,
+    deliveryUrl: `${config.publicBaseUrl}/ghl-outbound?gatewaySecret=${encodeURIComponent(gatewaySecret)}`,
     evolutionWebhookUrl: `${config.publicBaseUrl}/webhook/evolution-inbound?locationId=${encodeURIComponent(
       locationId
-    )}&gatewaySecret=GATEWAY_SHARED_SECRET`
+    )}&gatewaySecret=${encodeURIComponent(gatewaySecret)}`
   }));
 };
 
