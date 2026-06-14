@@ -76,7 +76,7 @@
             },
             {
               "name": "messageBody",
-              "value": "={{ $('Webhook GHL Outbound').item.json.body.body }}"
+              "value": "={{ $('Webhook GHL Outbound').item.json.body.message || $('Webhook GHL Outbound').item.json.body.body }}"
             }
           ]
         },
@@ -91,7 +91,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://wa.salesmasterplus.cloud/message/sendText/bb-cleaning-360",
+        "url": "https://wa.salesmasterplus.cloud/message/sendText/YOUR_EVOLUTION_INSTANCE_NAME",
         "sendHeaders": true,
         "headers": {
           "parameters": [

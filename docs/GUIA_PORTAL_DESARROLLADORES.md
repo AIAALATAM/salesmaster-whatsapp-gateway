@@ -49,9 +49,9 @@ Esta es la parte mágica que le dice a GHL: *"No uses Twilio para mandar SMS; en
 1. En el menú izquierdo de tu aplicación, busca y haz clic en la opción **Capabilities** (Capacidades) o **Conversation Provider**.
 2. Activa el interruptor que dice **Conversation Provider** (o *Custom SMS Provider*).
 3. Rellena los campos correspondientes con los siguientes valores:
-   *   **Delivery URL:** Escribe exactamente:
-       `https://wa.salesmasterplus.cloud/ghl-outbound`
-       *(Esta es la URL que tu Caddy en el VPS enrutará hacia el gateway puerto 8086).*
+   *   **Delivery URL:** Escribe:
+       `https://wa.salesmasterplus.cloud/ghl-outbound?gatewaySecret=TU_GATEWAY_SHARED_SECRET`
+       *(Esta URL debe llegar al gateway en el puerto 8086. El secreto evita que terceros puedan disparar envíos si conocen el endpoint).*
    *   **Provider Name:** Escribe `Sales Master WhatsApp QR` (es el nombre que verás en los desplegables de configuración de la subcuenta).
    *   **Provider Description:** `Conector WhatsApp QR en VPS propio`.
 4. Haz clic en **Save** (Guardar).

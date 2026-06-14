@@ -3,13 +3,13 @@ import { config } from "../config";
 
 const ghlClient = axios.create({
   baseURL: config.ghlApiBase,
+  timeout: 15000,
   headers: {
-    "Version": config.ghlVersion,
+    Version: config.ghlVersion,
     "Content-Type": "application/json"
   }
 });
 
-// Resuelve dinámicamente las cabeceras con el PIT de la subcuenta
 const getHeaders = (locationPit?: string) => {
   const token = locationPit || config.ghlLocationPit;
   if (!token) {
@@ -20,21 +20,20 @@ const getHeaders = (locationPit?: string) => {
   };
 };
 
+const toE164 = (phone: string) => {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return digits.startsWith("+") ? digits : `+${digits.replace(/\D/g, "")}`;
+};
+
 export class GhlService {
-  /**
-   * Busca un contacto en GHL por su número de teléfono
-   */
   static async findContactByPhone(phone: string, locationPit?: string): Promise<any> {
     try {
-      // Formatear el teléfono para asegurar el '+'
-      const cleanPhone = phone.startsWith("+") ? phone : `+${phone}`;
-      
       const response = await ghlClient.get("/contacts/", {
-        params: { phone: cleanPhone },
+        params: { phone: toE164(phone) },
         headers: getHeaders(locationPit)
       });
 
-      if (response.data && response.data.contacts && response.data.contacts.length > 0) {
+      if (response.data?.contacts?.length > 0) {
         return response.data.contacts[0];
       }
       return null;
@@ -44,18 +43,13 @@ export class GhlService {
     }
   }
 
-  /**
-   * Crea un nuevo contacto básico en GHL
-   */
   static async createContact(phone: string, firstName: string, locationPit?: string): Promise<any> {
     try {
-      const cleanPhone = phone.startsWith("+") ? phone : `+${phone}`;
-      
       const response = await ghlClient.post(
         "/contacts/",
         {
           firstName,
-          phone: cleanPhone
+          phone: toE164(phone)
         },
         {
           headers: getHeaders(locationPit)
@@ -69,24 +63,33 @@ export class GhlService {
     }
   }
 
-  /**
-   * Inyecta un mensaje entrante (Inbound) de WhatsApp en la conversación de GHL
-   */
-  static async injectInboundMessage(contactId: string, text: string, locationPit?: string): Promise<any> {
+  static async injectInboundMessage(
+    contactId: string,
+    text: string,
+    locationPit?: string,
+    options?: {
+      conversationProviderId?: string;
+      type?: string;
+      attachments?: string[];
+    }
+  ): Promise<any> {
     try {
-      const response = await ghlClient.post(
-        "/conversations/messages",
-        {
-          type: "WhatsApp",
-          contactId,
-          body: text,
-          direction: "inbound",
-          status: "delivered"
-        },
-        {
-          headers: getHeaders(locationPit)
-        }
-      );
+      const payload: Record<string, any> = {
+        type: options?.type || config.ghlInboundType,
+        contactId,
+        message: text
+      };
+
+      if (options?.conversationProviderId) {
+        payload.conversationProviderId = options.conversationProviderId;
+      }
+      if (options?.attachments?.length) {
+        payload.attachments = options.attachments;
+      }
+
+      const response = await ghlClient.post("/conversations/messages/inbound", payload, {
+        headers: getHeaders(locationPit)
+      });
 
       return response.data;
     } catch (error: any) {
@@ -95,10 +98,11 @@ export class GhlService {
     }
   }
 
-  /**
-   * Actualiza el estado de un mensaje saliente enviado por GHL
-   */
-  static async updateMessageStatus(messageId: string, status: "sent" | "delivered" | "failed", locationPit?: string): Promise<any> {
+  static async updateMessageStatus(
+    messageId: string,
+    status: "sent" | "delivered" | "failed",
+    locationPit?: string
+  ): Promise<any> {
     try {
       const response = await ghlClient.put(
         `/conversations/messages/${messageId}/status`,

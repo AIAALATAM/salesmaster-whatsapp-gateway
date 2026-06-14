@@ -1,82 +1,134 @@
-# 🔀 Documentación de Mapeo de Esquemas JSON
+# Mapeo de esquemas JSON
 
-Este documento detalla la estructura y el flujo de los objetos de datos procesados por el microservicio `gateway-service` para sincronizar los mensajes bidireccionalmente.
+## 1. GHL outbound -> Gateway
 
----
+Endpoint:
 
-## 📤 1. Mensaje Saliente (GHL -> VPS Gateway)
-Petición `POST` recibida en `/ghl-outbound` enviada de forma nativa por GHL.
+```text
+POST /ghl-outbound
+```
+
+HighLevel Provider Outbound Message v3 envia:
 
 ```json
 {
+  "contactId": "GHL_CONTACT_ID",
+  "locationId": "GHL_LOCATION_ID",
+  "messageId": "GHL_MESSAGE_ID",
   "type": "SMS",
-  "locationId": "string (ID de la subcuenta en GHL)",
-  "conversationId": "string (ID del hilo de chat en GHL)",
-  "messageId": "string (ID único del mensaje generado por GHL)",
-  "body": "string (El texto escrito por el agente o workflow)",
-  "attachments": "array (URLs de adjuntos opcionales)",
-  "contactId": "string (ID del contacto del CRM)",
-  "to": "string (Teléfono en formato E.164, ej: +34663396642)"
+  "phone": "+15864603685",
+  "message": "Texto a enviar",
+  "attachments": ["https://example.com/file.png"],
+  "userId": "GHL_USER_ID"
 }
 ```
 
----
-
-## 📥 2. Inyección de Mensaje Entrante (VPS Gateway -> GHL API v2)
-Llamada `POST` realizada a `https://services.leadconnectorhq.com/conversations/messages` para pintar el chat del cliente.
+El gateway tambien acepta payload legacy:
 
 ```json
 {
-  "type": "WhatsApp",
-  "contactId": "string (ID del contacto resuelto en GHL)",
-  "body": "string (El texto del WhatsApp del cliente)",
-  "direction": "inbound",
-  "status": "delivered"
+  "locationId": "GHL_LOCATION_ID",
+  "messageId": "GHL_MESSAGE_ID",
+  "to": "+15864603685",
+  "body": "Texto a enviar"
 }
 ```
 
----
+## 2. Gateway -> Evolution API QR
 
-## 📈 3. Actualización de Check de Entrega (VPS Gateway -> GHL API v2)
-Llamada `PUT` a `https://services.leadconnectorhq.com/conversations/messages/{messageId}/status` para actualizar la confirmación de lectura.
-
-```json
-{
-  "status": "delivered" // Valores válidos: "sent" | "delivered" | "failed"
-}
+```text
+POST /message/sendText/{instanceName}
 ```
 
----
-
-## 📱 4. Envío a Evolution API QR (VPS Gateway -> Evolution API)
-Petición `POST` a `/message/sendText/{instanceName}` para despachar mediante la sesión QR.
-
 ```json
 {
-  "number": "string (Solo dígitos del teléfono, ej: 34663396642)",
+  "number": "15864603685",
   "options": {
-    "delay": 0, // Delay de colas nativo
-    "presence": "composing" // Muestra "Escribiendo..." en el chat del cliente
+    "delay": 0,
+    "presence": "composing"
   },
   "textMessage": {
-    "text": "string (El mensaje a enviar)"
+    "text": "Texto a enviar"
   }
 }
 ```
 
----
+## 3. Gateway -> Meta Cloud API
 
-## 💼 5. Envío a Meta Cloud API Oficial (VPS Gateway -> Meta API)
-Petición `POST` a `https://graph.facebook.com/v20.0/{phoneNumberId}/messages` para despachar de forma oficial.
+```text
+POST https://graph.facebook.com/{META_GRAPH_VERSION}/{phoneNumberId}/messages
+```
 
 ```json
 {
   "messaging_product": "whatsapp",
   "recipient_type": "individual",
-  "to": "string (Solo dígitos)",
+  "to": "15864603685",
   "type": "text",
   "text": {
-    "body": "string (Cuerpo del mensaje)"
+    "body": "Texto a enviar"
   }
 }
 ```
+
+## 4. Evolution inbound -> Gateway
+
+Endpoint configurado en cada instancia Evolution:
+
+```text
+POST /webhook/evolution-inbound?locationId=GHL_LOCATION_ID&gatewaySecret=GATEWAY_SHARED_SECRET
+```
+
+El gateway procesa `messages.upsert`, ignora mensajes `fromMe`, resuelve el tenant y crea/inserta el inbound en GHL.
+
+## 5. Meta inbound -> Gateway
+
+Endpoint:
+
+```text
+GET/POST /webhook/meta-whatsapp
+```
+
+GET valida `hub.verify_token`. POST valida `X-Hub-Signature-256` si `META_APP_SECRET` esta configurado.
+
+## 6. Gateway -> GHL inbound
+
+Endpoint oficial:
+
+```text
+POST /conversations/messages/inbound
+```
+
+Payload:
+
+```json
+{
+  "type": "SMS",
+  "contactId": "GHL_CONTACT_ID",
+  "message": "Texto recibido"
+}
+```
+
+Si el provider fue configurado como canal custom adicional, el gateway incluye:
+
+```json
+{
+  "conversationProviderId": "GHL_CONVERSATION_PROVIDER_ID"
+}
+```
+
+## 7. Gateway -> GHL status update
+
+Endpoint:
+
+```text
+PUT /conversations/messages/{messageId}/status
+```
+
+El gateway marca:
+
+- `sent` cuando Evolution/Meta acepta el envio.
+- `failed` cuando falla el dispatch.
+
+No marca `delivered` hasta implementar webhooks de ack real del proveedor.
+

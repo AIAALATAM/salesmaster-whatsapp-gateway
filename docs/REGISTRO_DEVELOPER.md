@@ -25,7 +25,7 @@ Para que tu microservicio actúe como un **Custom Conversation Provider** nativo
 1. En el panel lateral de tu app, busca la sección **Capabilities** (Capacidades) o **Conversation Provider**.
 2. Activa la casilla de **Conversation Provider** (Custom SMS Provider).
 3. Configura los siguientes campos:
-   *   **Delivery URL:** Registra la URL expuesta por tu Caddy en tu VPS que apunta al endpoint `/ghl-outbound` (ej: `https://wa.salesmasterplus.cloud/ghl-outbound`).
+   *   **Delivery URL:** Registra la URL expuesta por tu Caddy en tu VPS que apunta al endpoint `/ghl-outbound` (ej: `https://wa.salesmasterplus.cloud/ghl-outbound?gatewaySecret=TU_GATEWAY_SHARED_SECRET`).
    *   **Provider Name:** El nombre que verán los usuarios en la UI (ej. `Sales Master WhatsApp QR`).
 4. Guarda los cambios. GHL te asignará un **`conversationProviderId`** (ID único de proveedor).
 

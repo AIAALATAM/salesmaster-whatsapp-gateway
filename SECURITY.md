@@ -1,16 +1,24 @@
-# Security
+# Seguridad
 
-Do not commit production secrets to this repository.
+Nunca subas credenciales reales a Git.
 
-Rotate any credential that has ever appeared in local docs, compose files, screenshots, tickets or chat transcripts before production use.
+Credenciales que deben vivir fuera del repo:
 
-Minimum production hardening checklist:
+- GHL PITs
+- GHL Client Secret
+- Evolution API key
+- Meta access tokens
+- Meta app secret
+- Password de Postgres
+- IPs o rutas SSH sensibles
 
-- Store GHL PITs, OAuth tokens, Evolution API keys and Meta tokens outside Git.
-- Protect all gateway webhooks with HMAC or a shared secret.
-- Validate Meta webhook signatures.
-- Reject unknown tenants instead of falling back to a default account.
-- Redact phone numbers and message bodies from logs by default.
-- Add rate limits per tenant and per WhatsApp instance.
-- Use persistent queues and idempotency keys for outbound messages.
+Antes de produccion:
+
+1. Rota cualquier secreto que haya aparecido en docs antiguas, capturas o logs.
+2. Usa `.env` en el VPS o un secret manager.
+3. Mantiene `REQUIRE_GATEWAY_SECRET=true`.
+4. Mantiene `ALLOW_DEFAULT_TENANT=false`.
+5. Mantiene `LOG_MESSAGE_BODIES=false`.
+6. Valida firma Meta con `META_APP_SECRET`.
+7. No uses QR para cold outreach ni mensajes masivos.
 

@@ -76,7 +76,7 @@
             },
             {
               "name": "messageBody",
-              "value": "={{ $('Webhook GHL Outbound Meta').item.json.body.body }}"
+              "value": "={{ $('Webhook GHL Outbound Meta').item.json.body.message || $('Webhook GHL Outbound Meta').item.json.body.body }}"
             }
           ]
         },

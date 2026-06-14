@@ -1,183 +1,371 @@
+import crypto from "crypto";
 import express from "express";
-import { config } from "./config";
+import { config, GatewayMode, TenantConfig } from "./config";
 import { GhlService } from "./services/ghl";
 import { EvolutionService } from "./services/evolution";
 import { MetaService } from "./services/meta";
 
+interface ResolvedTenant extends TenantConfig {
+  locationId: string;
+}
+
+type StatusCode = 400 | 401 | 403 | 404 | 500;
+
+class HttpError extends Error {
+  constructor(
+    public statusCode: StatusCode,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
 const app = express();
-app.use(express.json());
 
-console.log(`[Gateway Service] Starting in ${config.activeGateway} mode...`);
+app.use(
+  express.json({
+    limit: config.jsonLimit,
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf;
+    }
+  })
+);
 
-/**
- * 1. GHL OUTBOUND DELIVERY WEBHOOK (GHL -> VPS Gateway -> WhatsApp)
- * Este endpoint es el 'Delivery URL' de tu Custom Conversation Provider en GHL.
- */
-app.post("/ghl-outbound", async (req, res) => {
-  const { messageId, body, to, locationId, contactId } = req.body;
-  
-  if (!body || !to) {
-    console.warn("[GHL Outbound] Received incomplete message payload:", req.body);
-    return res.status(400).json({ error: "Missing body or recipient phone ('to')" });
+const safeCompare = (left: string, right: string) => {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+const maskPhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length <= 4) {
+    return "****";
+  }
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+};
+
+const getSharedSecret = (req: express.Request) => {
+  return (
+    req.get("x-salesmaster-gateway-secret") ||
+    req.query.gatewaySecret?.toString() ||
+    req.query.secret?.toString() ||
+    req.query.token?.toString() ||
+    ""
+  );
+};
+
+const requireGatewaySecret = (req: express.Request) => {
+  if (!config.requireGatewaySecret) {
+    return;
+  }
+  if (!config.gatewaySharedSecret) {
+    throw new HttpError(500, "Gateway secret enforcement is enabled but no secret is configured.");
+  }
+  const supplied = getSharedSecret(req);
+  if (!supplied || !safeCompare(supplied, config.gatewaySharedSecret)) {
+    throw new HttpError(401, "Invalid gateway secret.");
+  }
+};
+
+const verifyMetaSignature = (req: express.Request) => {
+  if (!config.metaAppSecret) {
+    return;
   }
 
-  // Resolver tenant dinámico
-  const tenant = locationId ? config.tenants[locationId] : null;
-  const instanceName = tenant ? tenant.instanceName : config.evolutionInstanceName;
-  const locationPit = tenant ? tenant.pit : config.ghlLocationPit;
+  const signature = req.get("x-hub-signature-256") || "";
+  const rawBody = (req as any).rawBody as Buffer | undefined;
+  if (!signature || !rawBody) {
+    throw new HttpError(401, "Missing Meta signature.");
+  }
 
-  console.log(`[GHL Outbound] Sending message to ${to} using instance ${instanceName} (Location: ${locationId || 'default'}). ID: ${messageId}`);
+  const expected = `sha256=${crypto
+    .createHmac("sha256", config.metaAppSecret)
+    .update(rawBody)
+    .digest("hex")}`;
 
-  // Responder rápido a GHL para evitar timeouts en su API
-  res.status(200).json({ status: "processing" });
+  if (!safeCompare(signature, expected)) {
+    throw new HttpError(401, "Invalid Meta signature.");
+  }
+};
 
-  // Procesamiento asíncrono
+const firstString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+};
+
+const attachmentText = (attachments: unknown) => {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return "";
+  }
+  const urls = attachments.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return urls.length ? urls.map(url => `Adjunto: ${url}`).join("\n") : "";
+};
+
+const buildOutboundText = (payload: any) => {
+  const text = firstString(payload.message, payload.body, payload.text);
+  const attachments = attachmentText(payload.attachments);
+  return [text, attachments].filter(Boolean).join("\n\n");
+};
+
+const resolveTenantByLocation = (locationId?: string): ResolvedTenant => {
+  if (locationId && config.tenants[locationId]) {
+    return { locationId, ...config.tenants[locationId] };
+  }
+
+  if (locationId && !config.allowDefaultTenant) {
+    throw new HttpError(404, `Unknown GHL locationId: ${locationId}`);
+  }
+
+  if (config.allowDefaultTenant && config.ghlLocationPit && config.evolutionInstanceName) {
+    return {
+      locationId: locationId || "default",
+      pit: config.ghlLocationPit,
+      instanceName: config.evolutionInstanceName
+    };
+  }
+
+  throw new HttpError(400, "locationId is required and must exist in GHL_TENANTS.");
+};
+
+const resolveTenantByEvolution = (locationId?: string, instanceName?: string): ResolvedTenant => {
+  if (locationId) {
+    const tenant = resolveTenantByLocation(locationId);
+    if (instanceName && tenant.instanceName !== instanceName) {
+      throw new HttpError(403, "Evolution instance does not match the configured tenant.");
+    }
+    return tenant;
+  }
+
+  if (instanceName) {
+    const match = Object.entries(config.tenants).find(([, tenant]) => tenant.instanceName === instanceName);
+    if (match) {
+      return { locationId: match[0], ...match[1] };
+    }
+  }
+
+  if (config.allowDefaultTenant && config.ghlLocationPit && config.evolutionInstanceName) {
+    return {
+      locationId: "default",
+      pit: config.ghlLocationPit,
+      instanceName: config.evolutionInstanceName
+    };
+  }
+
+  throw new HttpError(400, "Could not resolve tenant from Evolution webhook.");
+};
+
+const resolveTenantByMetaPhone = (phoneNumberId?: string): ResolvedTenant => {
+  if (phoneNumberId) {
+    const match = Object.entries(config.tenants).find(
+      ([, tenant]) => tenant.metaPhoneNumberId === phoneNumberId
+    );
+    if (match) {
+      return { locationId: match[0], ...match[1] };
+    }
+  }
+
+  if (config.allowDefaultTenant && config.ghlLocationPit && config.metaPhoneNumberId) {
+    return {
+      locationId: "default",
+      pit: config.ghlLocationPit,
+      instanceName: config.evolutionInstanceName,
+      metaPhoneNumberId: config.metaPhoneNumberId,
+      metaAccessToken: config.metaAccessToken
+    };
+  }
+
+  throw new HttpError(400, "Could not resolve tenant from Meta phone_number_id.");
+};
+
+const sendWhatsApp = async (tenant: ResolvedTenant, phone: string, text: string) => {
+  const gateway: GatewayMode = tenant.gateway || config.activeGateway;
+  if (gateway === "QR") {
+    return EvolutionService.sendText(phone, text, tenant.instanceName);
+  }
+  return MetaService.sendText(phone, text, tenant.metaPhoneNumberId, tenant.metaAccessToken);
+};
+
+const getEvolutionMessageText = (message: any) => {
+  return firstString(
+    message?.conversation,
+    message?.extendedTextMessage?.text,
+    message?.imageMessage?.caption,
+    message?.videoMessage?.caption,
+    message?.documentMessage?.caption,
+    message?.audioMessage ? "[Audio recibido por WhatsApp]" : "",
+    message?.imageMessage ? "[Imagen recibida por WhatsApp]" : "",
+    message?.videoMessage ? "[Video recibido por WhatsApp]" : "",
+    message?.documentMessage ? "[Documento recibido por WhatsApp]" : ""
+  );
+};
+
+const handleError = (res: express.Response, context: string, error: any) => {
+  const statusCode = error instanceof HttpError ? error.statusCode : 500;
+  console.error(`[${context}]`, error.message);
+  return res.status(statusCode).json({ error: error.message });
+};
+
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    activeGateway: config.activeGateway,
+    tenants: Object.keys(config.tenants).length,
+    requireGatewaySecret: config.requireGatewaySecret,
+    allowDefaultTenant: config.allowDefaultTenant
+  });
+});
+
+app.post("/ghl-outbound", async (req, res) => {
+  let tenant: ResolvedTenant | null = null;
+  const payload = req.body || {};
+  const messageId = firstString(payload.messageId);
+
   try {
-    let result;
-    if (config.activeGateway === "QR") {
-      result = await EvolutionService.sendText(to, body, instanceName);
-    } else {
-      result = await MetaService.sendText(to, body);
+    requireGatewaySecret(req);
+
+    const text = buildOutboundText(payload);
+    const phone = firstString(payload.phone, payload.to);
+    tenant = resolveTenantByLocation(firstString(payload.locationId));
+
+    if (!text || !phone) {
+      throw new HttpError(400, "Missing outbound message text or recipient phone.");
     }
 
-    // Actualizar estado en GHL a 'delivered'
-    if (messageId) {
-      await GhlService.updateMessageStatus(messageId, "delivered", locationPit);
+    console.log(
+      `[GHL Outbound] Accepted message ${messageId || "without-id"} for location ${tenant.locationId} to ${maskPhone(phone)}`
+    );
+
+    res.status(200).json({ status: "processing" });
+
+    try {
+      await sendWhatsApp(tenant, phone, text);
+      if (messageId) {
+        await GhlService.updateMessageStatus(messageId, "sent", tenant.pit);
+      }
+    } catch (error: any) {
+      console.error(`[GHL Outbound] Failed to dispatch ${messageId || "message"}:`, error.message);
+      if (messageId) {
+        await GhlService.updateMessageStatus(messageId, "failed", tenant.pit);
+      }
     }
   } catch (error: any) {
-    console.error(`[GHL Outbound] Failed to dispatch message to ${to}:`, error.message);
-    if (messageId) {
-      await GhlService.updateMessageStatus(messageId, "failed", locationPit);
-    }
+    return handleError(res, "GHL Outbound", error);
   }
 });
 
-/**
- * 2. EVOLUTION API INBOUND WEBHOOK (WhatsApp QR -> VPS Gateway -> GHL)
- * Registra esta URL en el Evolution API Manager de tu instancia.
- */
 app.post("/webhook/evolution-inbound", async (req, res) => {
   try {
-    const { event, data, instance } = req.body;
+    requireGatewaySecret(req);
 
-    // Solo nos interesan los mensajes entrantes creados
-    if (event !== "messages.upsert" || !data || data.key.fromMe) {
+    const { event, data, instance } = req.body || {};
+    if (event !== "messages.upsert" || !data || data.key?.fromMe) {
       return res.status(200).json({ status: "ignored" });
     }
 
-    const rawJid = data.key.remoteJid || "";
+    const rawJid = data.key?.remoteJid || "";
     const phone = rawJid.split("@")[0];
-    const messageText = data.message?.conversation || data.message?.extendedTextMessage?.text || "";
+    const messageText = getEvolutionMessageText(data.message);
     const contactName = data.pushName || "WhatsApp QR Contact";
+    const tenant = resolveTenantByEvolution(firstString(req.query.locationId), firstString(instance, req.query.instance));
 
     if (!phone || !messageText) {
       return res.status(200).json({ status: "empty_or_non_text" });
     }
 
-    // Resolver tenant dinámico
-    let locationPit = config.ghlLocationPit;
-    let locationId = "default";
-    
-    // Obtener la instancia del body o de la query string
-    const currentInstance = instance || req.query.instance || "";
-    const queryLocationId = req.query.locationId as string;
+    console.log(
+      `[Evolution Inbound] Message for location ${tenant.locationId} from ${maskPhone(phone)}${
+        config.logMessageBodies ? `: ${messageText}` : ""
+      }`
+    );
 
-    if (queryLocationId && config.tenants[queryLocationId]) {
-      locationId = queryLocationId;
-      locationPit = config.tenants[queryLocationId].pit;
-    } else if (currentInstance) {
-      const matchedLocationId = Object.keys(config.tenants).find(
-        id => config.tenants[id].instanceName === currentInstance
-      );
-      if (matchedLocationId) {
-        locationId = matchedLocationId;
-        locationPit = config.tenants[matchedLocationId].pit;
-      }
-    }
-
-    console.log(`[Evolution Inbound] Received message from ${phone} in instance "${currentInstance}" (Resolved Location: ${locationId}): "${messageText}"`);
-
-    // 1. Buscar contacto en GHL
-    let contact = await GhlService.findContactByPhone(phone, locationPit);
-
-    // 2. Si no existe, crearlo
+    let contact = await GhlService.findContactByPhone(phone, tenant.pit);
     if (!contact) {
-      console.log(`[Evolution Inbound] Contact not found in GHL. Creating: ${contactName} (${phone})`);
-      contact = await GhlService.createContact(phone, contactName, locationPit);
+      contact = await GhlService.createContact(phone, contactName, tenant.pit);
     }
 
-    // 3. Inyectar el mensaje recibido en el chat nativo de GHL
-    const contactId = contact.id;
-    await GhlService.injectInboundMessage(contactId, messageText, locationPit);
+    await GhlService.injectInboundMessage(contact.id, messageText, tenant.pit, {
+      conversationProviderId: tenant.conversationProviderId
+    });
 
-    res.status(200).json({ status: "success" });
+    return res.status(200).json({ status: "success" });
   } catch (error: any) {
-    console.error("[Evolution Inbound] Error processing inbound webhook:", error.message);
-    res.status(500).json({ error: error.message });
+    return handleError(res, "Evolution Inbound", error);
   }
 });
 
-/**
- * 3. META CLOUD API HANDSHAKE VERIFICATION (GET)
- * Requerido por Meta para verificar el webhook al configurarlo en el Developer Console.
- */
 app.get("/webhook/meta-whatsapp", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === config.metaVerifyToken) {
-    console.log("[Meta Webhook] Validation successful.");
     return res.status(200).send(challenge);
   }
-  
-  console.warn("[Meta Webhook] Validation failed. Tokens do not match.");
+
   return res.status(403).send("Forbidden");
 });
 
-/**
- * 4. META CLOUD API INBOUND WEBHOOK (POST)
- * Recibe y procesa los mensajes entrantes oficiales de Meta.
- */
 app.post("/webhook/meta-whatsapp", async (req, res) => {
   try {
+    verifyMetaSignature(req);
+
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
     const message = value?.messages?.[0];
 
-    // Ignorar si no es un mensaje entrante de un cliente
-    if (!message || message.from === undefined) {
+    if (!message?.from) {
       return res.status(200).json({ status: "ignored" });
     }
 
+    const tenant = resolveTenantByMetaPhone(value?.metadata?.phone_number_id);
     const phone = message.from;
-    const messageText = message.text?.body || "[Media or unsupported message type]";
+    const messageText = firstString(
+      message.text?.body,
+      message.image ? "[Imagen recibida por WhatsApp]" : "",
+      message.audio ? "[Audio recibido por WhatsApp]" : "",
+      message.video ? "[Video recibido por WhatsApp]" : "",
+      message.document ? "[Documento recibido por WhatsApp]" : "",
+      "[Media or unsupported message type]"
+    );
     const contactName = value.contacts?.[0]?.profile?.name || "WhatsApp Official Contact";
 
-    console.log(`[Meta Inbound] Received message from ${phone}: "${messageText}"`);
+    console.log(
+      `[Meta Inbound] Message for location ${tenant.locationId} from ${maskPhone(phone)}${
+        config.logMessageBodies ? `: ${messageText}` : ""
+      }`
+    );
 
-    // 1. Buscar contacto en GHL
-    let contact = await GhlService.findContactByPhone(phone);
-
-    // 2. Si no existe, crearlo
+    let contact = await GhlService.findContactByPhone(phone, tenant.pit);
     if (!contact) {
-      console.log(`[Meta Inbound] Contact not found in GHL. Creating: ${contactName} (${phone})`);
-      contact = await GhlService.createContact(phone, contactName);
+      contact = await GhlService.createContact(phone, contactName, tenant.pit);
     }
 
-    // 3. Inyectar el mensaje en el chat unificado de GHL
-    const contactId = contact.id;
-    await GhlService.injectInboundMessage(contactId, messageText);
+    await GhlService.injectInboundMessage(contact.id, messageText, tenant.pit, {
+      conversationProviderId: tenant.conversationProviderId
+    });
 
-    res.status(200).json({ status: "success" });
+    return res.status(200).json({ status: "success" });
   } catch (error: any) {
-    console.error("[Meta Inbound] Error processing inbound webhook:", error.message);
-    res.status(500).json({ error: error.message });
+    return handleError(res, "Meta Inbound", error);
   }
 });
 
-// Arrancar el Servidor
 app.listen(config.port, () => {
-  console.log(`[Gateway Service] Listening on port ${config.port}`);
+  console.log(
+    `[Gateway Service] Listening on port ${config.port} in ${config.activeGateway} mode. Tenants loaded: ${
+      Object.keys(config.tenants).length
+    }`
+  );
+  if (!config.requireGatewaySecret) {
+    console.warn("[Gateway Service] REQUIRE_GATEWAY_SECRET is disabled. Enable it before production.");
+  }
 });

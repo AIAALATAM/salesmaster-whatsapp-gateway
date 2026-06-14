@@ -160,7 +160,7 @@
             },
             {
               "name": "phone",
-              "value": "=+#{{ $('Parse Meta Message').item.json.phone }}"
+              "value": "=+{{ $('Parse Meta Message').item.json.phone }}"
             }
           ]
         },
@@ -175,7 +175,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "url": "https://services.leadconnectorhq.com/conversations/messages/inbound",
         "sendHeaders": true,
         "headers": {
           "parameters": [
@@ -191,7 +191,7 @@
         },
         "sendBody": true,
         "bodyFormat": "json",
-        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"body\": \"{{ $('Parse Meta Message').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+        "jsonBody": "={\n  \"type\": \"SMS\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"message\": \"{{ $('Parse Meta Message').item.json.messageText }}\"\n}"
       },
       "id": "a1b2c3d4-0009-4000-8000-000000000009",
       "name": "Inject Message (New Contact Meta)",
@@ -202,7 +202,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "url": "https://services.leadconnectorhq.com/conversations/messages/inbound",
         "sendHeaders": true,
         "headers": {
           "parameters": [
@@ -218,7 +218,7 @@
         },
         "sendBody": true,
         "bodyFormat": "json",
-        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"body\": \"{{ $('Parse Meta Message').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+        "jsonBody": "={\n  \"type\": \"SMS\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"message\": \"{{ $('Parse Meta Message').item.json.messageText }}\"\n}"
       },
       "id": "a1b2c3d4-0010-4000-8000-000000000010",
       "name": "Inject Message (Existing Contact Meta)",

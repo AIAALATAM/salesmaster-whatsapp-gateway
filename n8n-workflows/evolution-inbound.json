@@ -112,7 +112,7 @@
             },
             {
               "name": "phone",
-              "value": "=+#{{ $('Parse Webhook Data').item.json.phone }}"
+              "value": "=+{{ $('Parse Webhook Data').item.json.phone }}"
             }
           ]
         },
@@ -127,7 +127,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "url": "https://services.leadconnectorhq.com/conversations/messages/inbound",
         "sendHeaders": true,
         "headers": {
           "parameters": [
@@ -143,7 +143,7 @@
         },
         "sendBody": true,
         "bodyFormat": "json",
-        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"body\": \"{{ $('Parse Webhook Data').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+        "jsonBody": "={\n  \"type\": \"SMS\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"message\": \"{{ $('Parse Webhook Data').item.json.messageText }}\"\n}"
       },
       "id": "a1a1f0a0-0a0b-4444-a1a1-94cf1d11ffaa",
       "name": "Inject Message (New Contact)",
@@ -154,7 +154,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "url": "https://services.leadconnectorhq.com/conversations/messages/inbound",
         "sendHeaders": true,
         "headers": {
           "parameters": [
@@ -170,7 +170,7 @@
         },
         "sendBody": true,
         "bodyFormat": "json",
-        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"body\": \"{{ $('Parse Webhook Data').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+        "jsonBody": "={\n  \"type\": \"SMS\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"message\": \"{{ $('Parse Webhook Data').item.json.messageText }}\"\n}"
       },
       "id": "b2b2f0a0-0a0b-4444-b2b2-94cf1d11ffbb",
       "name": "Inject Message (Existing Contact)",

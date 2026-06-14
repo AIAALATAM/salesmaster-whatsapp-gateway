@@ -1,30 +1,47 @@
 # Sales Master WhatsApp Gateway
 
-Conector privado para integrar WhatsApp con GoHighLevel mediante:
+Gateway privado para conectar GoHighLevel con WhatsApp usando infraestructura propia de Sales Master.
 
-- GoHighLevel Custom Conversation Provider
-- Evolution API para conexion WhatsApp QR
-- Meta WhatsApp Cloud API para conexion oficial
-- Gateway TypeScript para enrutar mensajes inbound/outbound por tenant
-- Workflows n8n de referencia
+Soporta:
 
-Este repositorio es una exportacion saneada para analisis tecnico y colaboracion. No incluye credenciales reales.
+- GoHighLevel Custom Conversation Provider.
+- WhatsApp QR via Evolution API.
+- WhatsApp oficial via Meta Cloud API.
+- Multi-tenant por `locationId`.
+- Webhooks protegidos por secreto compartido.
+- Inbound correcto a `/conversations/messages/inbound`.
+- Payload outbound actual de HighLevel (`message`/`phone`) y legacy (`body`/`to`).
 
-## Estructura
+## Arranque rapido
 
-- `gateway-service/`: microservicio Express/TypeScript.
-- `docker/`: compose base para Evolution API, Postgres y gateway.
-- `caddy/`: ejemplo de reverse proxy.
-- `n8n-workflows/`: workflows de referencia.
-- `docs/`: guias, schema mapping, comparativa QR vs Meta y auditoria.
+```bash
+cp .env.example .env
+cd docker
+docker compose up -d --build
+```
 
-## Configuracion
+Configura Caddy con `caddy/Caddyfile.example`.
 
-1. Copia `.env.example` a `.env` en el entorno donde despliegues.
-2. Rellena tokens y tenants reales fuera de Git.
-3. Revisa `docs/AUDITORIA_PRIVADA_GOGHL_2026-06-14.md` antes de ponerlo en produccion.
+Healthcheck:
+
+```bash
+curl https://wa.salesmasterplus.cloud/healthz
+```
+
+## Documentacion principal
+
+- `docs/CONFIGURACION_PASO_PASO.md`
+- `docs/CONFIGURACION_MULTITENANT.md`
+- `docs/PLAYBOOK_CLIENTES_SALESMASTERULTRA.md`
+- `docs/SCHEMA_MAPPING.md`
+- `docs/AUDITORIA_PRIVADA_GOGHL_2026-06-14.md`
 
 ## Estado
 
-Base funcional en fase de auditoria. Antes de compartirlo con clientes hay que cerrar seguridad, routing, tenant isolation, colas/idempotencia y validacion contra payloads reales de HighLevel.
+Listo como MVP operativo endurecido. Pendiente para paridad avanzada con GoGHL:
+
+- Cola persistente e idempotencia duradera.
+- Webhooks de delivery/read ack reales.
+- Portal visual para QR por cliente.
+- Media/audio/botones nativos.
 

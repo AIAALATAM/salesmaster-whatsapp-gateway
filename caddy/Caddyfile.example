@@ -1,25 +1,28 @@
-# =========================================================================
-# CONFIGURACIÓN DE CADDYFILE PARA PROXY INVERSO DE EVOLUTION API
-# =========================================================================
-#
-# Copia este bloque dentro del archivo /etc/caddy/Caddyfile de tu VPS.
-# Cambia 'wa.salesmasterplus.cloud' por el subdominio que vayas a utilizar.
-# Recuerda que debes crear un registro tipo A en tu DNS apuntando a la IP
-# de tu VPS: TU_IP_DEL_VPS
+# Copia este bloque dentro de /etc/caddy/Caddyfile.
+# Cambia wa.salesmasterplus.cloud por el subdominio real.
 
 wa.salesmasterplus.cloud {
-    # Proxy inverso al contenedor de Evolution API corriendo en el puerto 8085
-    reverse_proxy localhost:8085
+    encode gzip zstd
 
-    # Optimización para WebSockets (requerido para eventos en tiempo real)
-    header {
-        Connection "Upgrade"
-        Upgrade "websocket"
+    route {
+        # Gateway Sales Master: GHL outbound, inbound WhatsApp y healthcheck.
+        reverse_proxy /healthz localhost:8086
+        reverse_proxy /ghl-outbound localhost:8086
+        reverse_proxy /webhook/evolution-inbound localhost:8086
+        reverse_proxy /webhook/meta-whatsapp localhost:8086
+
+        # Evolution API: panel, QR, instancia y endpoints nativos.
+        reverse_proxy localhost:8085
     }
 
-    # Logs de acceso para depuración (opcional)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
     log {
-        output file /var/log/caddy/evolution_api_access.log {
+        output file /var/log/caddy/whatsapp_gateway_access.log {
             roll_size 10mb
             roll_keep 5
         }

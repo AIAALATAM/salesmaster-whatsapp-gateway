@@ -3,6 +3,28 @@
 Fecha: 2026-06-14
 Alcance: `Recursos/whatsapp-connector`
 
+## Estado tras remediacion
+
+Remediado en esta version:
+
+- Secretos reales retirados de `docker-compose`, docs principales y config por defecto.
+- `.env.example`, `.gitignore`, `README.md` y `SECURITY.md` creados.
+- Caddy enruta `/ghl-outbound`, `/webhook/evolution-inbound`, `/webhook/meta-whatsapp` y `/healthz` al gateway en `8086`.
+- Gateway acepta payload HighLevel v3 (`message`/`phone`) y legacy (`body`/`to`).
+- Inbound migra a `/conversations/messages/inbound`.
+- Tenant strict por defecto con `ALLOW_DEFAULT_TENANT=false`.
+- Proteccion por secreto compartido con `GATEWAY_SHARED_SECRET`.
+- Validacion opcional de firma Meta con `META_APP_SECRET`.
+- Logs dejan de imprimir cuerpos de mensajes por defecto.
+- Workflows n8n legacy corregidos para phone formatting y endpoint inbound.
+
+Pendiente para paridad avanzada con GoGHL:
+
+- Cola persistente e idempotencia duradera.
+- Webhooks de delivery/read ack reales.
+- Portal visual para QR por cliente.
+- Media/audio/botones nativos.
+
 ## Resumen ejecutivo
 
 El conector actual ya contiene la base correcta para un "GoGHL privado": un gateway TypeScript, modo QR con Evolution API, modo oficial con Meta Cloud API, instalacion como app privada de GHL y una primera estrategia multitenant por `locationId`.
@@ -137,13 +159,15 @@ Accion recomendada:
 
 ## Hallazgos funcionales
 
-### 7. n8n tiene phone formatting incorrecto al crear contactos
+### 7. n8n tenia phone formatting incorrecto al crear contactos
 
-Impacto: alto si se usa n8n en produccion.
+Estado: remediado.
+
+Impacto original: alto si se usaba n8n en produccion.
 
 Evidencia:
-- `n8n-workflows/evolution-inbound.json:114-116` usa `=+#{{ ...phone }}`.
-- `n8n-workflows/meta-inbound.json:162-164` usa `=+#{{ ...phone }}`.
+- Los workflows usaban un prefijo extra al construir el telefono.
+- Ahora construyen el E.164 con un solo `+`.
 
 Riesgo:
 - Se crean contactos con telefonos invalidos.
@@ -151,12 +175,15 @@ Riesgo:
 Accion recomendada:
 - Cambiar a `=+{{ ...phone }}` o construir el E.164 en un nodo previo.
 
-### 8. Outbound n8n esta hardcoded a B&B Cleaning
+### 8. Outbound n8n estaba hardcoded a B&B Cleaning
 
-Impacto: alto si se usa n8n.
+Estado: remediado como workflow legacy de referencia.
+
+Impacto original: alto si se usaba n8n.
 
 Evidencia:
-- `n8n-workflows/evolution-outbound.json:94` usa `https://wa.salesmasterplus.cloud/message/sendText/bb-cleaning-360`.
+- `n8n-workflows/evolution-outbound.json` usaba una instancia concreta.
+- Ahora usa `YOUR_EVOLUTION_INSTANCE_NAME`.
 
 Riesgo:
 - Un workflow importado para otro cliente enviaria desde la instancia equivocada.
@@ -326,4 +353,3 @@ La posicion ideal de Sales Master no deberia ser "GoGHL publico clonado", sino "
 - Consulta externa de GoGHL y documentacion oficial actual de HighLevel.
 - `npm run build` en `gateway-service`: no ejecutable localmente porque `tsc` no esta instalado en la carpeta.
 - `docker compose config`: no ejecutable localmente porque `docker` no esta disponible en este entorno.
-
