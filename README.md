@@ -40,6 +40,7 @@ El dashboard pide el `GATEWAY_SHARED_SECRET` y desde ahi permite crear instancia
 ## Documentacion principal
 
 - `docs/DASHBOARD_QR_SMP.md`
+- `docs/HIGHLEVEL_RELEASE_RADAR_2026-06-12.md`
 - `docs/CONFIGURACION_PASO_PASO.md`
 - `docs/CONFIGURACION_MULTITENANT.md`
 - `docs/PLAYBOOK_CLIENTES_SALESMASTERULTRA.md`

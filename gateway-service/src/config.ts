@@ -83,7 +83,7 @@ export const config = {
 
   // GHL global config.
   ghlApiBase: process.env.GHL_API_BASE || "https://services.leadconnectorhq.com",
-  ghlVersion: process.env.GHL_VERSION || "2021-07-28",
+  ghlVersion: process.env.GHL_VERSION || "v3",
   ghlLocationPit: process.env.GHL_LOCATION_PIT || "",
   ghlInboundType: process.env.GHL_INBOUND_TYPE || "SMS",
   allowDefaultTenant: parseBool(process.env.ALLOW_DEFAULT_TENANT, false),

@@ -135,7 +135,7 @@ Riesgo:
 - Inbound puede fallar silenciosamente, crear threads incorrectos o depender de una version antigua.
 
 Accion recomendada:
-- Validar en staging con la version API configurada (`GHL_VERSION=2021-07-28`).
+- Validar en staging con la version API configurada (`GHL_VERSION=v3`).
 - Si aplica, migrar a `/conversations/messages/inbound`.
 - Incluir `contactId` o `conversationId`, canal, endpoint phone e `idempotencyKey`.
 
