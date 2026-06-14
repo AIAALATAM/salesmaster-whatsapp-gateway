@@ -32,8 +32,8 @@ LOG_MESSAGE_BODIES=false
 
 ```bash
 cd /opt/whatsapp-connector/docker
-docker compose up -d --build
-docker compose ps
+docker compose --env-file ../.env up -d --build
+docker compose --env-file ../.env ps
 ```
 
 Comprueba healthcheck:
@@ -155,7 +155,7 @@ https://wa.salesmasterplus.cloud/webhook/meta-whatsapp
 
 ```bash
 cd /opt/whatsapp-connector/docker
-docker compose logs -f gateway-service
+docker compose --env-file ../.env logs -f gateway-service
 ```
 
 ## 8. Regla operativa

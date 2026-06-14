@@ -1,6 +1,13 @@
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
-dotenv.config();
+const envPath =
+  [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "../.env")].find(candidate =>
+    fs.existsSync(candidate)
+  );
+
+dotenv.config(envPath ? { path: envPath } : undefined);
 
 export type GatewayMode = "QR" | "OFFICIAL";
 

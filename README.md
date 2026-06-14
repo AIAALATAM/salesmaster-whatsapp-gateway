@@ -18,7 +18,7 @@ Soporta:
 ```bash
 cp .env.example .env
 cd docker
-docker compose up -d --build
+docker compose --env-file ../.env up -d --build
 ```
 
 Configura Caddy con `caddy/Caddyfile.example`.
