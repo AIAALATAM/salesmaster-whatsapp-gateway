@@ -1,0 +1,166 @@
+{
+  "name": "GHL to Meta Cloud API Outbound",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ghl-outbound-meta",
+        "options": {}
+      },
+      "id": "b1c2d3e4-0001-4000-8000-000000000001",
+      "name": "Webhook GHL Outbound Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "key": "={{ $json.body.direction }}",
+              "operation": "equal",
+              "value": "outbound"
+            },
+            {
+              "key": "={{ $json.body.type }}",
+              "operation": "equal",
+              "value": "WhatsApp"
+            }
+          ]
+        }
+      },
+      "id": "b1c2d3e4-0002-4000-8000-000000000002",
+      "name": "Is Outbound WhatsApp? Meta",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.body.contactId }}",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1c2d3e4-0003-4000-8000-000000000003",
+      "name": "Get GHL Contact Phone Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "rawPhone",
+              "value": "={{ $json.contact.phone }}"
+            },
+            {
+              "name": "cleanPhone",
+              "value": "={{ $json.contact.phone.replace(/[^0-9]/g, '') }}"
+            },
+            {
+              "name": "messageBody",
+              "value": "={{ $('Webhook GHL Outbound Meta').item.json.body.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1c2d3e4-0004-4000-8000-000000000004",
+      "name": "Clean Phone Number Meta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/YOUR_PHONE_NUMBER_ID/messages",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_META_USER_ACCESS_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{ $json.cleanPhone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.messageBody }}\"\n  }\n}"
+      },
+      "id": "b1c2d3e4-0005-4000-8000-000000000005",
+      "name": "Send WhatsApp via Meta API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200]
+    }
+  ],
+  "connections": {
+    "Webhook GHL Outbound Meta": {
+      "main": [
+        [
+          {
+            "node": "Is Outbound WhatsApp? Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Outbound WhatsApp? Meta": {
+      "main": [
+        [
+          {
+            "node": "Get GHL Contact Phone Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get GHL Contact Phone Meta": {
+      "main": [
+        [
+          {
+            "node": "Clean Phone Number Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Phone Number Meta": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp via Meta API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

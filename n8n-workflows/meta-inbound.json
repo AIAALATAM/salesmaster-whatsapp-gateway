@@ -1,0 +1,324 @@
+{
+  "name": "Meta Cloud API to GHL (Inbound)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-whatsapp",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook Meta API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [150, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "key": "={{ $json.headers['x-forwarded-method'] || $json.headers['method'] || 'POST' }}",
+              "operation": "equal",
+              "value": "GET"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Is Handshake (GET)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseBody": "={{ $json.query['hub.challenge'] }}"
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Respond Handshake",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [550, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "key": "={{ $json.body.entry[0].changes[0].value.messages ? 'yes' : 'no' }}",
+              "operation": "equal",
+              "value": "yes"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Contains Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [550, 420]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].from }}"
+            },
+            {
+              "name": "messageText",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].text.body || '[Archivo/Imagen o Mensaje no soportado por este parser]' }}"
+            },
+            {
+              "name": "contactName",
+              "value": "={{ $json.body.entry[0].changes[0].value.contacts[0].profile.name || 'WhatsApp Contact' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Parse Meta Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [750, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/?phone=+{{ $json.phone }}",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "options": {
+          "ignoreHttpStatusErrors": true
+        }
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Search GHL Contact Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [950, 420]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "key": "={{ $json.contacts.length }}",
+              "operation": "greater",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Contact Exists? Meta",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1150, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "firstName",
+              "value": "={{ $('Parse Meta Message').item.json.contactName }}"
+            },
+            {
+              "name": "phone",
+              "value": "=+#{{ $('Parse Meta Message').item.json.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Create GHL Contact Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1350, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"body\": \"{{ $('Parse Meta Message').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Inject Message (New Contact Meta)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1550, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"body\": \"{{ $('Parse Meta Message').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+      },
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Inject Message (Existing Contact Meta)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1350, 320]
+    }
+  ],
+  "connections": {
+    "Webhook Meta API": {
+      "main": [
+        [
+          {
+            "node": "Is Handshake (GET)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Handshake (GET)?": {
+      "main": [
+        [
+          {
+            "node": "Respond Handshake",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contains Message?",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Contains Message?": {
+      "main": [
+        [
+          {
+            "node": "Parse Meta Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Meta Message": {
+      "main": [
+        [
+          {
+            "node": "Search GHL Contact Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search GHL Contact Meta": {
+      "main": [
+        [
+          {
+            "node": "Contact Exists? Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Exists? Meta": {
+      "main": [
+        [
+          {
+            "node": "Inject Message (Existing Contact Meta)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create GHL Contact Meta",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create GHL Contact Meta": {
+      "main": [
+        [
+          {
+            "node": "Inject Message (New Contact Meta)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

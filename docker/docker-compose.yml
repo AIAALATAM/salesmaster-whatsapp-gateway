@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  evolution-db:
+    image: postgres:16-alpine
+    container_name: evolution-db
+    restart: always
+    environment:
+      POSTGRES_USER: evolution_admin
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD}
+      POSTGRES_DB: evolution_api
+    ports:
+      - "127.0.0.1:5433:5432" # Expuesto solo localmente
+    volumes:
+      - postgres_evolution_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution_admin -d evolution_api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: evolution-api
+    restart: always
+    ports:
+      - "127.0.0.1:8085:8085" # Expuesto localmente, Caddy hará el proxy inverso
+    depends_on:
+      evolution-db:
+        condition: service_healthy
+    environment:
+      - SERVER_PORT=8085
+      - SERVER_URL=https://wa.salesmasterplus.cloud
+      - API_VERSION=v2
+      - DELAY_MESSAGE=1000
+      - AUTH_API_KEY=${EVOLUTION_API_KEY}
+      
+      # Base de Datos (PostgreSQL)
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution_admin:${EVOLUTION_POSTGRES_PASSWORD}@evolution-db:5432/evolution_api?schema=public
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution_api
+      - WEBSOCKET_ENABLED=true
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  gateway-service:
+    build:
+      context: ../gateway-service
+      dockerfile: Dockerfile
+    container_name: ghl-whatsapp-gateway
+    restart: always
+    ports:
+      - "127.0.0.1:8086:8086" # Expuesto localmente en puerto 8086, Caddy redirigirá aquí
+    environment:
+      - PORT=8086
+      - ACTIVE_GATEWAY=QR # QR o OFFICIAL
+      - GHL_API_BASE=https://services.leadconnectorhq.com
+      - GHL_VERSION=2021-07-28
+      - GHL_LOCATION_PIT=${GHL_LOCATION_PIT}
+      - GHL_TENANTS=${GHL_TENANTS}
+      - EVOLUTION_BASE_URL=http://evolution-api:8085
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_INSTANCE_NAME=${EVOLUTION_INSTANCE_NAME}
+      - META_PHONE_NUMBER_ID=${META_PHONE_NUMBER_ID}
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
+      - META_VERIFY_TOKEN=${META_VERIFY_TOKEN}
+    depends_on:
+      - evolution-api
+
+volumes:
+  postgres_evolution_data:
+  evolution_instances:

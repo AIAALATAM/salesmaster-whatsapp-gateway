@@ -1,0 +1,247 @@
+{
+  "name": "Evolution API (QR) to GHL (Inbound)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-inbound",
+        "options": {}
+      },
+      "id": "e8a93a32-1b1e-4581-80a5-b3f46f4817a0",
+      "name": "Webhook Evolution API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $json.body.data.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "name": "messageText",
+              "value": "={{ $json.body.data.message.conversation || $json.body.data.message.extendedTextMessage.text || '' }}"
+            },
+            {
+              "name": "contactName",
+              "value": "={{ $json.body.data.pushName || 'WhatsApp Contact' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c1f1f0a0-064b-4f9e-991c-b6a67fd99df8",
+      "name": "Parse Webhook Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/?phone=+{{ $json.phone }}",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "options": {
+          "ignoreHttpStatusErrors": true
+        }
+      },
+      "id": "d8e8b2b2-5f6f-4a00-99c9-94cf1d11ff99",
+      "name": "Search GHL Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [],
+          "string": [
+            {
+              "key": "={{ $json.contacts.length }}",
+              "operation": "greater",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "id": "e9e9f1a0-7f99-4c9f-888c-c6b75f8dfcfc",
+      "name": "Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "firstName",
+              "value": "={{ $('Parse Webhook Data').item.json.contactName }}"
+            },
+            {
+              "name": "phone",
+              "value": "=+#{{ $('Parse Webhook Data').item.json.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f5f5c1c0-0b0c-444a-a9a9-c8c8cc88dd88",
+      "name": "Create GHL Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contact.id }}\",\n  \"body\": \"{{ $('Parse Webhook Data').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+      },
+      "id": "a1a1f0a0-0a0b-4444-a1a1-94cf1d11ffaa",
+      "name": "Inject Message (New Contact)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"type\": \"WhatsApp\",\n  \"contactId\": \"{{ $json.contacts[0].id }}\",\n  \"body\": \"{{ $('Parse Webhook Data').item.json.messageText }}\",\n  \"direction\": \"inbound\"\n}"
+      },
+      "id": "b2b2f0a0-0a0b-4444-b2b2-94cf1d11ffbb",
+      "name": "Inject Message (Existing Contact)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Data": {
+      "main": [
+        [
+          {
+            "node": "Search GHL Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search GHL Contact": {
+      "main": [
+        [
+          {
+            "node": "Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Exists?": {
+      "main": [
+        [
+          {
+            "node": "Inject Message (Existing Contact)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create GHL Contact",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create GHL Contact": {
+      "main": [
+        [
+          {
+            "node": "Inject Message (New Contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

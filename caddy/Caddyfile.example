@@ -1,0 +1,27 @@
+# =========================================================================
+# CONFIGURACIÓN DE CADDYFILE PARA PROXY INVERSO DE EVOLUTION API
+# =========================================================================
+#
+# Copia este bloque dentro del archivo /etc/caddy/Caddyfile de tu VPS.
+# Cambia 'wa.salesmasterplus.cloud' por el subdominio que vayas a utilizar.
+# Recuerda que debes crear un registro tipo A en tu DNS apuntando a la IP
+# de tu VPS: TU_IP_DEL_VPS
+
+wa.salesmasterplus.cloud {
+    # Proxy inverso al contenedor de Evolution API corriendo en el puerto 8085
+    reverse_proxy localhost:8085
+
+    # Optimización para WebSockets (requerido para eventos en tiempo real)
+    header {
+        Connection "Upgrade"
+        Upgrade "websocket"
+    }
+
+    # Logs de acceso para depuración (opcional)
+    log {
+        output file /var/log/caddy/evolution_api_access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}

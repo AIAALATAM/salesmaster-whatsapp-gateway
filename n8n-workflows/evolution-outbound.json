@@ -1,0 +1,166 @@
+{
+  "name": "GHL to Evolution API (QR) Outbound",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ghl-outbound-qr",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
+      "name": "Webhook GHL Outbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "key": "={{ $json.body.direction }}",
+              "operation": "equal",
+              "value": "outbound"
+            },
+            {
+              "key": "={{ $json.body.type }}",
+              "operation": "equal",
+              "value": "WhatsApp"
+            }
+          ]
+        }
+      },
+      "id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
+      "name": "Is Outbound WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.body.contactId }}",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GHL_LOCATION_PIT"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f",
+      "name": "Get GHL Contact Phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "rawPhone",
+              "value": "={{ $json.contact.phone }}"
+            },
+            {
+              "name": "cleanPhone",
+              "value": "={{ $json.contact.phone.replace(/[^0-9]/g, '') }}"
+            },
+            {
+              "name": "messageBody",
+              "value": "={{ $('Webhook GHL Outbound').item.json.body.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+      "name": "Clean Phone Number",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.salesmasterplus.cloud/message/sendText/bb-cleaning-360",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "YOUR_EVOLUTION_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.cleanPhone }}\",\n  \"options\": {\n    \"delay\": 3500,\n    \"presence\": \"composing\"\n  },\n  \"textMessage\": {\n    \"text\": \"{{ $json.messageBody }}\"\n  }\n}"
+      },
+      "id": "e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b",
+      "name": "Send WhatsApp via QR (Evolution)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200]
+    }
+  ],
+  "connections": {
+    "Webhook GHL Outbound": {
+      "main": [
+        [
+          {
+            "node": "Is Outbound WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Outbound WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Get GHL Contact Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get GHL Contact Phone": {
+      "main": [
+        [
+          {
+            "node": "Clean Phone Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Phone Number": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp via QR (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
