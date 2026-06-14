@@ -61,6 +61,7 @@ const parseTenants = (): Record<string, TenantConfig> => {
 
 export const config = {
   port: Number(process.env.PORT || 8086),
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || "https://wa.salesmasterplus.cloud",
   jsonLimit: process.env.JSON_LIMIT || "256kb",
   nodeEnv: process.env.NODE_ENV || "development",
 

@@ -7,6 +7,8 @@ wa.salesmasterplus.cloud {
     route {
         # Gateway Sales Master: GHL outbound, inbound WhatsApp y healthcheck.
         reverse_proxy /healthz localhost:8086
+        reverse_proxy /dashboard* localhost:8086
+        reverse_proxy /api/dashboard* localhost:8086
         reverse_proxy /ghl-outbound localhost:8086
         reverse_proxy /webhook/evolution-inbound localhost:8086
         reverse_proxy /webhook/meta-whatsapp localhost:8086

@@ -54,6 +54,8 @@ sudo systemctl reload caddy
 Las rutas del gateway deben ir a `localhost:8086`:
 
 - `/healthz`
+- `/dashboard`
+- `/api/dashboard`
 - `/ghl-outbound`
 - `/webhook/evolution-inbound`
 - `/webhook/meta-whatsapp`
@@ -85,6 +87,20 @@ Scopes minimos:
 Instala la app en cada subcuenta de cliente.
 
 ## 5. Configurar cliente QR con Evolution
+
+Ruta recomendada desde el dashboard:
+
+```text
+https://wa.salesmasterplus.cloud/dashboard
+```
+
+1. Introduce el `GATEWAY_SHARED_SECRET`.
+2. Selecciona el tenant del cliente.
+3. Crea la instancia Evolution si todavia no existe.
+4. Pulsa `Conectar QR` y escanea el codigo con el WhatsApp dedicado del cliente.
+5. Pulsa `Activar webhook` para apuntar esa instancia al `locationId` correcto.
+
+Ruta alternativa por API, util si estas en terminal:
 
 Crea la instancia:
 
@@ -127,13 +143,15 @@ https://wa.salesmasterplus.cloud/webhook/meta-whatsapp
 
 ## 7. Prueba end-to-end
 
-1. En GHL, abre Conversations en la subcuenta.
-2. Crea o abre un contacto con telefono E.164.
-3. Envia un SMS desde la UI de GHL.
-4. Valida que llega por WhatsApp.
-5. Responde desde WhatsApp.
-6. Valida que el inbound aparece en la conversacion de GHL.
-7. Revisa logs:
+1. En GHL, instala la app en la subcuenta del cliente.
+2. En la subcuenta, ve a `Settings > Phone Numbers > Advanced Settings > SMS Provider` y selecciona `Sales Master WhatsApp QR`.
+3. Abre `Conversations`.
+4. Crea o abre un contacto con telefono E.164.
+5. Envia un SMS desde la UI de GHL.
+6. Valida que llega por WhatsApp.
+7. Responde desde WhatsApp.
+8. Valida que el inbound aparece en la conversacion de GHL.
+9. Revisa logs:
 
 ```bash
 cd /opt/whatsapp-connector/docker
@@ -143,4 +161,3 @@ docker compose logs -f gateway-service
 ## 8. Regla operativa
 
 Usa QR solo para clientes pequenos, pruebas y conversaciones reactivas con opt-in. Para clientes consolidados, usa Meta Cloud API oficial.
-

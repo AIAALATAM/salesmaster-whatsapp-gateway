@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import express from "express";
+import path from "path";
 import { config, GatewayMode, TenantConfig } from "./config";
 import { GhlService } from "./services/ghl";
 import { EvolutionService } from "./services/evolution";
@@ -213,6 +214,32 @@ const handleError = (res: express.Response, context: string, error: any) => {
   return res.status(statusCode).json({ error: error.message });
 };
 
+const dashboardDir = path.resolve(__dirname, "../public/dashboard");
+
+const dashboardAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    requireGatewaySecret(req);
+    next();
+  } catch (error: any) {
+    handleError(res, "Dashboard", error);
+  }
+};
+
+const getTenantSummaries = () => {
+  return Object.entries(config.tenants).map(([locationId, tenant]) => ({
+    locationId,
+    instanceName: tenant.instanceName,
+    gateway: tenant.gateway || config.activeGateway,
+    hasPit: Boolean(tenant.pit),
+    hasConversationProviderId: Boolean(tenant.conversationProviderId),
+    hasMetaPhoneNumberId: Boolean(tenant.metaPhoneNumberId),
+    deliveryUrl: `${config.publicBaseUrl}/ghl-outbound?gatewaySecret=GATEWAY_SHARED_SECRET`,
+    evolutionWebhookUrl: `${config.publicBaseUrl}/webhook/evolution-inbound?locationId=${encodeURIComponent(
+      locationId
+    )}&gatewaySecret=GATEWAY_SHARED_SECRET`
+  }));
+};
+
 app.get("/healthz", (_req, res) => {
   res.status(200).json({
     status: "ok",
@@ -221,6 +248,73 @@ app.get("/healthz", (_req, res) => {
     requireGatewaySecret: config.requireGatewaySecret,
     allowDefaultTenant: config.allowDefaultTenant
   });
+});
+
+app.use("/dashboard", express.static(dashboardDir));
+
+app.get("/dashboard", (_req, res) => {
+  res.sendFile(path.join(dashboardDir, "index.html"));
+});
+
+app.get("/api/dashboard/summary", dashboardAuth, (_req, res) => {
+  res.status(200).json({
+    gateway: {
+      activeGateway: config.activeGateway,
+      publicBaseUrl: config.publicBaseUrl,
+      requireGatewaySecret: config.requireGatewaySecret,
+      allowDefaultTenant: config.allowDefaultTenant,
+      evolutionConfigured: Boolean(config.evolutionApiKey),
+      metaConfigured: Boolean(config.metaPhoneNumberId && config.metaAccessToken)
+    },
+    tenants: getTenantSummaries()
+  });
+});
+
+app.get("/api/dashboard/evolution/instances", dashboardAuth, async (_req, res) => {
+  try {
+    const instances = await EvolutionService.fetchInstances();
+    res.status(200).json({ instances });
+  } catch (error: any) {
+    return handleError(res, "Dashboard Instances", error);
+  }
+});
+
+app.post("/api/dashboard/evolution/instances", dashboardAuth, async (req, res) => {
+  try {
+    const instanceName = firstString(req.body?.instanceName);
+    if (!instanceName) {
+      throw new HttpError(400, "instanceName is required.");
+    }
+    const result = await EvolutionService.createInstance(instanceName);
+    res.status(200).json({ result });
+  } catch (error: any) {
+    return handleError(res, "Dashboard Create Instance", error);
+  }
+});
+
+app.post("/api/dashboard/evolution/instances/:instanceName/connect", dashboardAuth, async (req, res) => {
+  try {
+    const instanceName = firstString(req.params.instanceName);
+    const result = await EvolutionService.connectInstance(instanceName);
+    res.status(200).json({ result });
+  } catch (error: any) {
+    return handleError(res, "Dashboard Connect Instance", error);
+  }
+});
+
+app.post("/api/dashboard/evolution/instances/:instanceName/webhook", dashboardAuth, async (req, res) => {
+  try {
+    const instanceName = firstString(req.params.instanceName);
+    const locationId = firstString(req.body?.locationId);
+    const tenant = resolveTenantByEvolution(locationId, instanceName);
+    const webhookUrl = `${config.publicBaseUrl}/webhook/evolution-inbound?locationId=${encodeURIComponent(
+      tenant.locationId
+    )}&gatewaySecret=${encodeURIComponent(config.gatewaySharedSecret || "GATEWAY_SHARED_SECRET")}`;
+    const result = await EvolutionService.setWebhook(instanceName, webhookUrl);
+    res.status(200).json({ webhookUrl, result });
+  } catch (error: any) {
+    return handleError(res, "Dashboard Set Webhook", error);
+  }
 });
 
 app.post("/ghl-outbound", async (req, res) => {

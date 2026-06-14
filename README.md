@@ -11,6 +11,7 @@ Soporta:
 - Webhooks protegidos por secreto compartido.
 - Inbound correcto a `/conversations/messages/inbound`.
 - Payload outbound actual de HighLevel (`message`/`phone`) y legacy (`body`/`to`).
+- Dashboard privado para operar instancias QR, copiar URLs y probar clientes.
 
 ## Arranque rapido
 
@@ -28,8 +29,17 @@ Healthcheck:
 curl https://wa.salesmasterplus.cloud/healthz
 ```
 
+Dashboard operativo:
+
+```text
+https://wa.salesmasterplus.cloud/dashboard
+```
+
+El dashboard pide el `GATEWAY_SHARED_SECRET` y desde ahi permite crear instancias Evolution, conectar el QR del cliente, configurar el webhook inbound y copiar la Delivery URL para GHL.
+
 ## Documentacion principal
 
+- `docs/DASHBOARD_QR_SMP.md`
 - `docs/CONFIGURACION_PASO_PASO.md`
 - `docs/CONFIGURACION_MULTITENANT.md`
 - `docs/PLAYBOOK_CLIENTES_SALESMASTERULTRA.md`
@@ -38,10 +48,8 @@ curl https://wa.salesmasterplus.cloud/healthz
 
 ## Estado
 
-Listo como MVP operativo endurecido. Pendiente para paridad avanzada con GoGHL:
+Listo como MVP operativo endurecido con dashboard QR privado. Pendiente para paridad avanzada con GoGHL:
 
 - Cola persistente e idempotencia duradera.
 - Webhooks de delivery/read ack reales.
-- Portal visual para QR por cliente.
 - Media/audio/botones nativos.
-

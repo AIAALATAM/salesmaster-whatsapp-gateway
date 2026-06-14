@@ -13,6 +13,8 @@ Para cada cliente:
 - Instancia Evolution: normalmente el mismo slug
 - Telefono WhatsApp dedicado
 - Opt-in documentado para automatizacion
+- Proveedor seleccionado en GHL: `Settings > Phone Numbers > Advanced Settings > SMS Provider`
+- QR conectado desde `https://wa.salesmasterplus.cloud/dashboard`
 
 ## Plantilla de tenant QR
 
@@ -57,11 +59,13 @@ Usa `OFFICIAL` para:
 1. `curl /healthz` devuelve `status: ok`.
 2. Tenant existe en `GHL_TENANTS`.
 3. Evolution muestra instancia conectada o Meta webhook validado.
-4. Envio outbound desde GHL llega a WhatsApp.
-5. Respuesta inbound desde WhatsApp aparece en GHL.
-6. Logs no muestran cuerpos de mensaje si `LOG_MESSAGE_BODIES=false`.
-7. No hay fallback default: `ALLOW_DEFAULT_TENANT=false`.
-8. Secreto activo: `REQUIRE_GATEWAY_SECRET=true`.
+4. Delivery URL de la app privada apunta a `/ghl-outbound`.
+5. Subcuenta tiene seleccionado `Sales Master WhatsApp QR` como SMS Provider.
+6. Envio outbound desde GHL llega a WhatsApp.
+7. Respuesta inbound desde WhatsApp aparece en GHL.
+8. Logs no muestran cuerpos de mensaje si `LOG_MESSAGE_BODIES=false`.
+9. No hay fallback default: `ALLOW_DEFAULT_TENANT=false`.
+10. Secreto activo: `REQUIRE_GATEWAY_SECRET=true`.
 
 ## Incidencias comunes
 
@@ -70,4 +74,3 @@ Usa `OFFICIAL` para:
 - `Evolution instance does not match`: el webhook de una instancia apunta al `locationId` de otro cliente.
 - `Meta signature invalid`: revisar `META_APP_SECRET` y que Caddy no modifique el body.
 - Inbound no aparece: confirmar PIT, scopes y endpoint `/conversations/messages/inbound`.
-

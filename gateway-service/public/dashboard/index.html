@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sales Master WhatsApp Gateway</title>
+    <link rel="stylesheet" href="/dashboard/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brandMark">SM</span>
+          <div>
+            <strong>Sales Master</strong>
+            <span>WhatsApp Gateway</span>
+          </div>
+        </div>
+        <nav aria-label="Secciones">
+          <a href="#clients">Clientes</a>
+          <a href="#qr">QR</a>
+          <a href="#ghl">GHL</a>
+          <a href="#diagnostics">Estado</a>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="topbar">
+          <div>
+            <h1>WhatsApp QR Console</h1>
+            <p>Conecta instancias Evolution con subcuentas GHL sin exponer claves del servidor.</p>
+          </div>
+          <button id="refreshButton" class="button primary" type="button">Actualizar</button>
+        </section>
+
+        <section class="panel authPanel">
+          <div>
+            <h2>Acceso</h2>
+            <p>Introduce el `GATEWAY_SHARED_SECRET` del VPS para operar el dashboard.</p>
+          </div>
+          <label>
+            <span>Gateway secret</span>
+            <input id="secretInput" type="password" autocomplete="off" placeholder="GATEWAY_SHARED_SECRET" />
+          </label>
+          <button id="saveSecretButton" class="button" type="button">Guardar</button>
+        </section>
+
+        <section id="diagnostics" class="metrics">
+          <div>
+            <span>Gateway</span>
+            <strong id="gatewayMode">-</strong>
+          </div>
+          <div>
+            <span>Tenants</span>
+            <strong id="tenantCount">-</strong>
+          </div>
+          <div>
+            <span>Evolution</span>
+            <strong id="evolutionState">-</strong>
+          </div>
+          <div>
+            <span>Security</span>
+            <strong id="securityState">-</strong>
+          </div>
+        </section>
+
+        <section id="clients" class="panel">
+          <div class="sectionHeader">
+            <div>
+              <h2>Clientes configurados</h2>
+              <p>Estos clientes salen de `GHL_TENANTS`. Cada instancia QR debe coincidir con su `instanceName`.</p>
+            </div>
+          </div>
+          <div id="tenantList" class="tenantGrid"></div>
+        </section>
+
+        <section id="qr" class="workspace">
+          <div class="panel">
+            <h2>Crear o conectar QR</h2>
+            <div class="formGrid">
+              <label>
+                <span>Location ID</span>
+                <select id="tenantSelect"></select>
+              </label>
+              <label>
+                <span>Instance name</span>
+                <input id="instanceInput" type="text" placeholder="bb-cleaning-360" />
+              </label>
+            </div>
+            <div class="buttonRow">
+              <button id="createInstanceButton" class="button" type="button">Crear instancia</button>
+              <button id="connectInstanceButton" class="button primary" type="button">Mostrar QR</button>
+              <button id="setWebhookButton" class="button" type="button">Configurar webhook</button>
+            </div>
+          </div>
+
+          <div class="panel qrPanel">
+            <h2>QR / respuesta Evolution</h2>
+            <div id="qrBox" class="qrBox">
+              <span>El QR aparecerá aquí cuando pulses Mostrar QR.</span>
+            </div>
+            <pre id="apiOutput" class="apiOutput"></pre>
+          </div>
+        </section>
+
+        <section id="ghl" class="panel">
+          <h2>Dónde probarlo en GHL / Sales Master</h2>
+          <div class="steps">
+            <div><b>1</b><span>Developer Portal > Apps > Sales Master WhatsApp Gateway > Conversation Provider.</span></div>
+            <div><b>2</b><span>Delivery URL: usa `/ghl-outbound?gatewaySecret=...`.</span></div>
+            <div><b>3</b><span>Instala la app en la subcuenta del cliente.</span></div>
+            <div><b>4</b><span>Subcuenta > Settings > Phone Numbers > Advanced Settings > SMS Provider.</span></div>
+            <div><b>5</b><span>Selecciona Sales Master WhatsApp Gateway y envía un SMS desde Conversations.</span></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/dashboard/app.js" type="module"></script>
+  </body>
+</html>
